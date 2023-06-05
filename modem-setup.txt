@@ -1,0 +1,87 @@
+#######################################
+SIMCOM 7600X AT modem general setup
+#######################################
+
+Pre-requisites:
+	Drivers for your specific modem model
+	Putty
+
+# SETUP THE MODEM'S DEFAULT CONFIG IN WINDOWS FIRST
+1. Add a working SIM to modem
+2. Connect modem module or hat to windows USB (without Raspi attached)
+3. Extract or install drivers (may need to install to multiple devices in device manager)
+4. Check the COM Port number used for the new modem device
+5. Install Putty & connect to the above COM port as serial connection, baud 115200
+	ATE1			#allows local echo of commands
+	AT+CCUART=1		# Enables modem serial interface. Check for any required dip switch/jumpers that also enable serial modem interface
+
+	# Choose either of the following:
+	AT+CUSBPIDSWITCH=9001,1,1	# Sets modem to NDIS - for exclusive serial use or serial with Raspi IOT - no wwan tcp/ip
+	OR
+	AT+CUSBPIDSWITCH=9011,1,1	# Sets modem to RNDIS - for plug and play WWAN via usb connection. Best for windows use. 
+
+# FOR WINDOWS DEPLOYMENT (use as an RNDIS PnP WWAN adapter)
+	You must manually add Windows native RDNIS driver:
+		Windows: Device Manager | Browse for driver | Let me pick | Network adapters | Have disk | Microsoft+Remote NDIS compatible device | Ignore warning
+
+# FOR RASPI DEPLOYMENT
+	# Add this section to cmdline.txt for portrait aligned monitor: 
+	video=HDMI-A-1:1920x1080M@60,rotate=90
+
+	# Install other needed software
+	sudo apt install minicom speedtest-cli
+
+	# Optional python depending on use case
+	sudo apt install python3-pip
+	sudo pip3 install pyserial 
+
+	# Do this step only if you did not enable the modem serial interface in Windows as per above
+	sudo minicom -D /dev/ttyUSB2
+	ATE1			#Enable local echo
+	AT+CCUART=1
+
+	# Enable the raspi serial interface
+	sudo raspi-config | Interface Options | Serial Port | Login shell? N | Serial Port HW enabled? Y | Reboot
+
+	# Set the required modem encoding scheme ( depends on carrier, language, region etc GSM is preferred )
+	AT+CSCS="GSM"
+	AT+CSMP=17,167,2,0 (Waveshare specific ) - a common default is AT+CSMP=17,167,0,0
+
+	# NOW SWITCH TO SERIAL CONNECTION TO MODEM
+	sudo stty -F /dev/ttyS0 115200 # Set the correct serial baud rate ( first to confirm the name the correct serial device name presented - can vary )
+	sudo minicom -D /dev/ttyS0 -b 115200	# Test serial connection also works
+	ATE1		# Enable local echo
+	AT+CNMP?	# Check network modem
+	AT+CREG?	# Check network status
+	AT+CSQ		# Check signal strength (out of 31?)
+	AT+COPS?	# Check network supplier
+	ATD +61**** # Test Dial a number
+	Ctrl+a	x	# Exit minicom
+
+	#Test WWAN
+	sudo rfkill block/unblock wifi or unplug Ethernet # Force outgoing connection through WWAN.
+	speedtest	# Check WWAN is up and speed is as expected
+
+	# TEST GPS
+	AT+CGPS=1 	# Open GPS
+	AT+CGPSINFO	# Prints GPS information 
+	AT+CGPS=0	# Turn off GPS
+
+	# OTHER USEFUL TEST COMMANDS
+	AT+CSCS=? # Query supported character sets
+	AT+CSMP? # show the current text mode parameters
+	AT+GCAP # request general capabilities
+	AT+CFUN=1 # full functionality, see other variants for low power use
+	AT+CFUN=0 # turns off all rf
+	AT+CRESET # reset modem
+	AT+CPOF # power off
+	AT+CMGL="ALL" # read all sms in queue
+	AT+CMGR=20  # read the 20th message in the queue
+	AT+CMGD=20 # delete the 20th message
+	AT+CMGD=1,4 # delete all text IN THR queue 
+	ATZ # reset modem to factory defaults - careful!
+
+# FOR OWRT DEPLOYMENT
+	opkg update | okpg install kmod-usb-net-rndis
+	
+
