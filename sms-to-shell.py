@@ -61,7 +61,8 @@ file_handler.setFormatter(formatter)
 # Add log file handler to logger
 logger.addHandler(file_handler)
 
-OTP_ENABLED = False
+
+OTP_ENABLED = False  # Enable OTP globally here
 TOTP_SECRET_KEY = 'run otp-setup.py and add secret key value from otp-key.txt here'
 totp = pyotp.TOTP(TOTP_SECRET_KEY)
 
@@ -223,10 +224,19 @@ def process_sms(modem, sms):
         logger.info('D: %s T: %s Ph: %s Command: %s',
                     time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
 
+        # Check if the phone number is allowed
+        if phone_number not in ACL:
+            # Phone number not allowed, send rejection message
+            rejection_message = "Access denied"
+            send_sms_command(modem, phone_number, rejection_message)
+            logger.warning("D: %s T: %s UNAUTHORISED ACCESS ATTEMPT Ph: %s Command: %s",
+                        time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
+            return
 
-        # Split the content into OTP and command (if possible)
+        # If OTP is enabled, verify password before proceeding
         if is_otp_enabled():
             try:
+                # Split the content into OTP and command
                 otp, command = content.split(' ', 1)
             except ValueError:
                 # Invalid format, send rejection message
@@ -245,17 +255,7 @@ def process_sms(modem, sms):
             # Remove the OTP from the message content
             content = command
 
-        # Check if the phone number is allowed
-        if phone_number not in ACL:
-            # Phone number not allowed, send rejection message
-            rejection_message = "Access denied"
-            send_sms_command(modem, phone_number, rejection_message)
-#            logger.warning("Unauthorised access attempt - Phone Number: %s - Unauthorised Command: %s", phone_number, content)
-            logger.warning("D: %s T: %s UNAUTHORISED ACCESS ATTEMPT Ph: %s Command: %s",
-                        time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
-            return
-
-        elif content.strip().upper() == KEYWORD_PROCESS_LIST:
+        if content.strip().upper() == KEYWORD_PROCESS_LIST:
             # Send process list
             send_process_list(modem, phone_number)
             return
