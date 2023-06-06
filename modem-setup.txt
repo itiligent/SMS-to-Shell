@@ -83,4 +83,5 @@ Pre-requisites:
 
 # FOR OWRT DEPLOYMENT
 	opkg update | okpg install kmod-usb-net-rndis
+	
 
