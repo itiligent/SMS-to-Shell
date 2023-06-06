@@ -12,7 +12,7 @@ SERVICE_DESCR="SMS to shell service"
 SERVICE_FILE="/lib/systemd/system/$SERVICE_NAME.service"
 INSTALL_DIR="/opt/$SERVICE_NAME"
 PYTHON_SCRIPT="sms-to-shell.py"
-SHELL_USER="pi" # Commands will run in this user context.
+SHELL_USER="root" # Commands will run in this user context.
 
 # Create installation directory
 sudo mkdir -p $INSTALL_DIR
@@ -58,3 +58,4 @@ if [ "$SERVICE_STATUS" = "active" ]; then
 else
     echo "Failed to start the service. Check the status using 'systemctl status $SERVICE_NAME'."
 fi
+
