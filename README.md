@@ -1,51 +1,88 @@
+# Raspberry Pi SMS to OS shell command interface 
+### (Supports optional TOTP authentication, command whitelist & phone number white/black list restrictions)
 
-## Interactive SMS to OS shell command interface
+This script provides a robust framework to control and interact with an OS shell remotely via SMS commands. It supports executing either customisable predefined commands via SMS keyword shortcuts or sending shell commands directly. For convenience, all keyword shortcuts are **case insensitive**, whereas direct SMS commands remain **case sensitive**.
 
-#### This script provides a simple and robust way to control and interact with an OS shell remotely via SMS commands. It supports executing either customisable predefined commands via SMS keyword shortcuts, or sending shell commands directly. 
+After sending a shell command via SMS, incoming messages are converted into shell input, executed, and the resulting shell output is replayed back to the sender's phone number via SMS. All SMS command outputs above a configurable character limit will be paginated over multiple SMS messages/pages.
 
-#### After sending a shell command via SMS, incoming messages are converted into shell input, executed and the resulting shell output is replayed back to the sender's phone number via SMS. All SMS command outputs above a configurable character limit will be paginated over multiple SMS messages/pages.
+Zero trust is achievable via optional TOTP authentication for every command interaction. For lower security use cases, phone number whitelisting and unrestricted shell commands are enabled by default. All SMS interactions are logged.
 
-#### Built-in keyword commands are included for ping test "P", display of an abbreviated Linux process list "PL", and for killing a Linux process "KILL pid". Six extra blank keyword command templates are included to configure your own shortcuts.
-For convenience, all keyword shortcuts are ***case insensitive*** whereas direct sms commands remain ***case sensitive***.
+## Features
 
-    Script further includes:
-     Access control list (allowed phone numbers white list)
-     Flexible support for a variety of modems with varied default character sets/languages/text mode parameters
-     Flexible management of modem SMS message memory limits
-     SMS command logging, log rotation, log size management
-     Error handing and logging on all functions for stability 
-     An installer bash script for installing the python script as a systemd Linux service
+The script includes the following features:
 
-  	Requirements:
-	An AT serial or USB modem with a functioning sim/carrier connection 
-	A basic understanding of AT modem syntax, bash and python.
-  	A recent Debian flavoured Linux OS with python3 and python pip installed 
-   	
-	
-	Setup instructions:
-		1. Install dependencies: sudo apt install minicom python3-pip and then sudo pip3 install pyserial
-		2. Copy sms-to-shell.py and sms-to-shell-setup.sh to your home directory
-		3. Customise the python script's variables for your phone numbers, hardware and use case.
-		4. Make the setup script executable: chmod +x sms-to-shell.sh
-		5. Run the setup script: sudo ./sms-to-shell.sh to setup the python script as a service (enabled at boot).
-		6. Send a test message and check the log file, check phone for expected return output.
+- Flexible support most modems and carriers across various default character sets/languages/text mode parameters etc.
+- Flexible management of modem SMS message storage limits
+- Security logging, log rotation, and log size management
+- Error handling and logging on all functions for stability
+- An installer bash script for installing the Python script as a systemd Linux service
 
-	Troubleshooting:
-		Tested and working solidly with Waveshare (Simcom) 7600x on Rasberry Pi 4B / Raspian Bullseye 64. 
-		Most issues will likely relate to the modem serial interface or SMS character encoding:
-			* Check for correct serial or usb device paths being set in the script.
-			   Test modem with sudo minicom -D /dev/tty[your device you set in the script] 
-			   In minicom type ATE1 and then AT+COPS? If you get no response you have a modem issue
-			* Garble or hex in the log, or weird sms return characters means character set issues
-			   1. AT+CSCS=? gives the modem's supported character sets. Check this. 
-			   2. Search modem docs for "AT+CSMP" to learn modem's default text mode parameters.
-			   3. Stop the script and reset the modem to factory defaults (typically "ATZ" and "AT+CRESET")
-			   4. Configure the script with the modem settings learned in 1 & 2
-			   5. You may need to further research the correct encoding for the required character set
-			      i.e. UCS2 needs utf-16 for Asian/Arabic languages, GSM needs utf-8 etc. 
+## Requirements
 
-			For more modem troubleshooting see modem-setup.txt & included AT command reference PDF.
-	
-	Future plans: Add a OTP or 2FA SMS challenge reply before each command to harden against potential phone number spoofing
-		      Limit the script only to a white list of available commands
-		      Multi-threading to make immediate parsing of cancel/break commands more feasible
+To use this script, you need the following:
+
+- An AT serial or USB modem with a functioning SIM/carrier connection
+- A basic understanding of AT modem syntax, bash, and Python
+- A recent Debian-flavored Linux OS with Python 3 and Python pip installed (Windows adaption would be minor)
+
+## Setup Instructions
+
+Follow these steps to set up the `sms-to-shell.py` script:
+
+1. Install dependencies:
+   ```
+   sudo apt install minicom python3-pip 
+   sudo pip3 install pyserial qrcode pyotp
+   ```
+
+2. Copy the following files to your home directory:
+   - sms-to-shell.py
+   - sms-to-shell-setup.sh
+   - otp-setup.py
+
+3. `sms-to-shell.py` requires some configuration before running:
+   - Set the modem device and baud rate
+   - Adjust the ACL to your trusted phone numbers
+   - Update the `CURRENT_DIR = ` to the preferred current directory path to base the script's operation.
+
+4. Decide the appropriate SMS-to-Shell security level:
+  - To restrict SMS-to-Shell to whitelisted keyword commands only, set `RESTRICT_COMMANDS = True`
+  - For TOTP one time password support, set `OTP_ENABLED = True`
+     - For TOTP authentication, you must also run `otp-setup.py` to generate the secret key `otp-key.txt` and qrcode `otp-qrcode.png` files.
+     - Copy the secret key generated on screnn and saved to `otp-key.text` to `TOTP_SECRET_KEY = "xxxxxxxxxx"`
+     - Use `otp-qrcode.png` or the secret key to set up your preferred authenticator app.
+
+6. Manually test the script: `python3 sms-to-shell.py` 
+   - Give it ample time to initialise - be patient. 
+   - Debug info will show on screen as SMS commands are received
+   - Watch the log with `tail -f /log/path/sms-to-shell.log`
+   - To send commands, SMS shell command syntax is:
+     - OTP enabled: `otp_password [space] command or keyword shortcut`
+     - OTP disabled: `command or keyword shortcut`
+
+7. Install SMS-to-Shell as a systemd service
+   - Make `sms-to-shell-setup.sh` executable and run it: `chmod +x sms-to-shell.sh` and `sudo ./sms-to-shell.sh`
+     - Advanced users may want to run the script as a specific user. If so, adjust `sms-to-shell-setup.sh` to the desired value for `SHELL_USER='???'`. 
+     - Using `SHELL_USER = 'root'` should work universally and changing this requires understanding the various implications:
+       - A lower privileged user may require additional `sudo` command input overhead/back and forth.
+       - A lower privileged user typically can't write to `/var/log/` therefore a log path such as `/home/user` will be needed.
+
+
+## Troubleshooting
+
+Script was tested and works solidly with Waveshare (Simcom) 7600x on Raspberry Pi 4B / Raspian Bullseye 64.
+
+Here are some troubleshooting tips for common issues:
+
+- Check logs for any error messages. Most issues will likely relate to the modem serial interface or SMS character encoding
+   - Check for correct serial or USB device paths being set in the script
+     - Test the modem with `sudo minicom -D /dev/tty[your device you set in the script]`
+     - In minicom, type `ATE1` and then `AT+COPS?`. If you get no response, you have a modem connectivity or setup issue.
+   - Garbled or hex characters visible in the log or in minicom indicates character set mismatch issues.
+      - a. Use `AT+CSCS=?` to check the modem's supported character sets.
+      - b. Search the modem documentation for "AT+CSMP" to learn about the modem's default text mode parameters.
+      - c. Stop the script and reset the modem to factory defaults (typically "ATZ" and "AT+CRESET").
+      - d. Configure the script with the modem settings learned in steps a and b.
+      - e. You may need to further research the correct encoding for the required character set, e.g., UCS2 needs UTF-16 for Asian/Arabic languages, GSM needs UTF-8, etc.
+
+For more modem troubleshooting, refer to `modem-setup.txt` and the included AT command reference PDF.
