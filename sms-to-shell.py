@@ -12,6 +12,7 @@ import re
 import logging
 import os
 import logging.handlers
+import pyotp
 
 MODEM = '/dev/ttyS0'  # Modem hardware device
 MODEM_BAUD_RATE = 115200  # Modem port speed
@@ -60,12 +61,22 @@ file_handler.setFormatter(formatter)
 # Add log file handler to logger
 logger.addHandler(file_handler)
 
+OTP_ENABLED = False
+TOTP_SECRET_KEY = 'run otp-setup.py and add secret key value from otp-key.txt here'
+totp = pyotp.TOTP(TOTP_SECRET_KEY)
+
+
+# Check if OTP authentication is enabled
+def is_otp_enabled():
+    return OTP_ENABLED
+
+
 def switch_to_directory():
     # Change to the home directory
     os.chdir(CURRENT_DIR)
 
 
-def send_sms_command(modem, phone_number, message):
+def send_sms_command(modem, phone_number, command):
     try:
         # Set sms text send mode
         modem.write(b'MODEM_MSG_FORMAT\r\n')
@@ -74,7 +85,7 @@ def send_sms_command(modem, phone_number, message):
         # Send SMS command
         modem.write('AT+CMGS="{}"\r\n'.format(phone_number).encode(MODEM_CHAR_ENCODING))
         modem.read_until(b'> ')
-        modem.write(message.encode(MODEM_CHAR_ENCODING))
+        modem.write(command.encode(MODEM_CHAR_ENCODING))
         modem.write(bytes([26]))  # Ctrl+Z
         modem.read_until(b'+CMGS: ')
         response = modem.read_until(b'OK\r\n')
@@ -89,6 +100,7 @@ def send_sms_command(modem, phone_number, message):
         # Log the error message
         logger.error('An error occurred while sending an SMS command: %s', str(e))
         return False
+
 
 
 def execute_shell_command(command):
@@ -211,6 +223,28 @@ def process_sms(modem, sms):
         logger.info('D: %s T: %s Ph: %s Command: %s',
                     time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
 
+
+        # Split the content into OTP and command (if possible)
+        if is_otp_enabled():
+            try:
+                otp, command = content.split(' ', 1)
+            except ValueError:
+                # Invalid format, send rejection message
+                rejection_message = "Invalid format. Please provide OTP and command separated by a space."
+                send_sms_command(modem, phone_number, rejection_message)
+                logger.warning("Invalid format - Phone Number: %s - Command: %s", phone_number, content)
+                return
+
+            if not totp.verify(otp):
+                # Invalid 2FA code, send rejection message
+                rejection_message = "Invalid authentication code"
+                send_sms_command(modem, phone_number, rejection_message)
+                logger.warning("Invalid 2FA code - Phone Number: %s - Command: %s", phone_number, content)
+                return
+
+            # Remove the OTP from the message content
+            content = command
+
         # Check if the phone number is allowed
         if phone_number not in ACL:
             # Phone number not allowed, send rejection message
@@ -286,10 +320,10 @@ def process_sms(modem, sms):
         logger.error('An error occurred in process_sms function: %s', str(e))
 
 
-def build_sms_response(modem, phone_number, response):
+def build_sms_response(modem, phone_number, command):
     try:
         # Paginate the SMS response
-        pages = paginate_output(modem, response)  # Pass the 'modem' argument as well
+        pages = paginate_output(modem, command)  # Pass the 'modem' argument as well
         num_pages = len(pages)
 
         for i, page in enumerate(pages):
@@ -302,6 +336,7 @@ def build_sms_response(modem, phone_number, response):
     except Exception as e:
         # Log the error message
         logger.error('Failed to send SMS response: %s', str(e))
+
 
 
 def paginate_output(modem, output):
@@ -348,20 +383,6 @@ def check_read_sms(modem):
     except Exception as e:
         # Log the error message
         logger.error('Failed to check read status of SMS message: %s', str(e))
-
-
-# Unused but kept for syntax in some use cases where modem memory may be weird or where things might need to save to the sim card.
-# This Function calls the current message ID in real time for deletion.
-# SMS are now purged in batches with the catch all purge_all_sms function for greater responsiveness and lower power use.
-#def delete_sms(modem, message):
-#    try:
-#        # Delete the current SMS message from modem memory
-#        message_id = message.split(',')[0]
-#        modem.write(f'AT+CMGD={message_id}\r\n'.encode(MODEM_CHAR_ENCODING))
-#        modem.read_until(b'OK\r\n')
-#    except Exception as e:
-#        # Handle the exception by printing an error message
-#        print(f"Failed to delete SMS: {str(e)}")
 
 
 def purge_all_sms(modem):
