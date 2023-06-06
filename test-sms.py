@@ -1,4 +1,5 @@
 #!/usr/bin/python
+
 # This is mostly a copy of a rather clunky test script found in the labyrinth of Waveshare websites
 # Set it to your phone number and run. GSM is likely used here this is the 
 # most universal (but character limited) encoding scheme.
