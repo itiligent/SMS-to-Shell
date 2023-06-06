@@ -29,3 +29,4 @@ function keeps track of the number of read SMS messages in the modem memory and 
 clears all SMS messages from the modem's memory.
 
 
+
