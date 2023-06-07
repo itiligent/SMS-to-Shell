@@ -31,8 +31,12 @@ Follow these steps to set up the `sms-to-shell.py` script:
 
 1. Install dependencies:
    ```
-   sudo apt install minicom python3-pip 
+   sudo apt update && sudo install minicom python3-pip 
    sudo pip3 install pyserial qrcode pyotp
+   ```
+   If you wish to stick with distro based software, another [not fully tested] option is
+   ```
+   sudo apt update && sudo apt install minicom python3-serial python3-pyotp python3-qrcode
    ```
 
 2. Copy the following files to your home directory:
@@ -56,6 +60,8 @@ Follow these steps to set up the `sms-to-shell.py` script:
    - Give it ample time to initialise - be patient. 
    - Debug info will show on screen as SMS commands are received
    - Watch the log with `tail -f /log/path/sms-to-shell.log`
+   - Make your own keyword shortcuts
+     - IMPORTANT: shortcut values must be set as UPPERCASE Eg. `KEYWORD_1 = 'AAA'`
    - To send commands, SMS shell command syntax is:
      - OTP enabled: `otp_password [space] command or keyword shortcut`
      - OTP disabled: `command or keyword shortcut`
