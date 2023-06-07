@@ -18,6 +18,8 @@ OTP_ENABLED = False  # Enable OTP security globally here
 TOTP_SECRET_KEY = 'run otp-setup.py and add secret key value from otp-key.txt here'
 totp = pyotp.TOTP(TOTP_SECRET_KEY)
 
+RESTRICT_COMMANDS = False  # Limit the script to only allow a whitelist of keyword commands 
+
 MODEM = '/dev/ttyS0'  # Modem hardware device
 MODEM_BAUD_RATE = 115200  # Modem port speed
 MODEM_CHAR_ENCODING = 'iso-8859-1' # Character encoding scheme
@@ -28,7 +30,7 @@ MAX_SMS_LENGTH = 150  # Max characters in a single SMS. (Reduce if pages are ski
 MODEM_DELAY = 30 # Allow modem to initialise after reboot so one-time modem config commands are not given too early and fail.
 DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger batch delete. Check modem specs: Waveshare storage limit = 20
 PURGE_SMS = 'AT+CMGD=1,4'  # Purge all SMS in modem storage
-ACL = '+611234567890,+19876543210'  # Phone number access control white list. See comments in process_sms to switch to a black list.
+ACL = '+611234567890,+19876543210'  # Phone number white list. (See comments in ACL section to convert to a black list)
 LOG_ROTATE_COUNT = 2 # How many security logs to keep in rotation before overwrite
 CURRENT_DIR = '/root' # Default current shell directory path for the SMS user
 
@@ -44,7 +46,7 @@ KEYWORD_1 = 'K1'
 KEYWORD_1_CMD = 'echo "Hello World!"'
 
 KEYWORD_2 = 'K2'
-KEYWORD_2_CMD = 'ps -aux'
+KEYWORD_2_CMD = 'ps -aux' # careful this returns a 100+ pages
 
 KEYWORD_3 = 'K3'
 KEYWORD_3_CMD = 'uname -a'
@@ -53,7 +55,7 @@ KEYWORD_4 = 'K4'
 KEYWORD_4_CMD = 'uname -s'
 
 KEYWORD_5 = 'K5'
-KEYWORD_5_CMD = 'uname -i'
+KEYWORD_5_CMD = 'uname -m'
 
 KEYWORD_6 = 'K6'
 KEYWORD_6_CMD = 'uname -o'
@@ -232,7 +234,7 @@ def process_sms(modem, sms):
                     time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
 
         # Check if the phone number is allowed
-        if phone_number not in ACL: # Potential to make ACL a black list with "if phone_number is in ACL:"
+        if phone_number not in ACL: # make ACL a black list by reversing line to "if phone_number is in ACL:"
             # Phone number not allowed, send rejection message
             rejection_message = "Access denied"
             send_sms_command(modem, phone_number, rejection_message)
@@ -240,7 +242,7 @@ def process_sms(modem, sms):
                         time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
             return
 
-        # If OTP is enabled, verify one time password before proceeding
+        # If OTP is enabled, verify one-time password before proceeding
         if is_otp_enabled():
             try:
                 # Split the content into OTP and the actual command
@@ -311,20 +313,23 @@ def process_sms(modem, sms):
             kill_process(modem, phone_number, pid)
             return
 
-        # Execute the sms command in the shell
-        command = content + ' ; echo "exit status =" $?'
-        output = execute_shell_command(command)
-        print("Command output:")
-        print(output)
+        # Execute unrestricted sms commands if RESTRICT_COMMANDS is False
+        if not RESTRICT_COMMANDS:
+            command = content + ' ; echo "exit status =" $?'
+            output = execute_shell_command(command)
+            build_sms_response(modem, phone_number, output)
+            return
 
-        # Send the command output to be assembled as SMS
-        build_sms_response(modem, phone_number, output)
-
-        time.sleep(0.5)  # Delay to give the modem time to keep up
+        # If the command is not recognised, send an error message
+        error_message = "Command not allowed"
+        send_sms_command(modem, phone_number, error_message)
+        logger.warning("Illegal command - Phone Number: %s - Command: %s", phone_number, content)
 
     except Exception as e:
-        # Log the error message
-        logger.error('An error occurred in process_sms function: %s', str(e))
+        # Handle any exceptions that occur during processing
+        error_message = "An error occurred while processing the SMS."
+        send_sms_command(modem, phone_number, error_message)
+        logger.exception("Exception occurred - Phone Number: %s - Command: %s", phone_number, content)
 
 
 def build_sms_response(modem, phone_number, command):
