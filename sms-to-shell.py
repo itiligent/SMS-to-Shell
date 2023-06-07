@@ -14,38 +14,48 @@ import os
 import logging.handlers
 import pyotp
 
+OTP_ENABLED = False  # Enable OTP security globally here
+TOTP_SECRET_KEY = 'run otp-setup.py and add secret key value from otp-key.txt here'
+totp = pyotp.TOTP(TOTP_SECRET_KEY)
+
 MODEM = '/dev/ttyS0'  # Modem hardware device
 MODEM_BAUD_RATE = 115200  # Modem port speed
 MODEM_CHAR_ENCODING = 'iso-8859-1' # Character encoding scheme
-MODEM_CHAR_SET = 'AT+CSCS="IRA"'  # Use your modem manufacturer's default character set
-MODEM_TXT_MODE_PARAM = 'AT+CSMP=17,167,0,0'  # Use your modem manufacturer's default text mode parameters
-MODEM_MSG_FORMAT = 'AT+CMGF=1' # Set the modem SMS mode to text or PDU format
+MODEM_CHAR_SET = 'AT+CSCS="IRA"'  # Typically your modem manufacturer's default character set
+MODEM_TXT_MODE_PARAM = 'AT+CSMP=17,167,0,0'  # Typically your modem manufacturer's default text mode parameters
+MODEM_MSG_FORMAT = 'AT+CMGF=1' # Set the modem SMS mode to text or PDU format, typically =1 for text
 MAX_SMS_LENGTH = 150  # Max characters in a single SMS. (Reduce if pages are skipped, GSM default is 160 minus pagination overhead)
-MODEM_DELAY = 30 # Allow modem to initialise after reboot so critical one-time modem config commands are not missed.
-DEL_SMS_BATCH = 10  # Batch delete read messages to reduce serial latency/loads/power use. Check modem docs for max storage figure.
+MODEM_DELAY = 30 # Allow modem to initialise after reboot so one-time modem config commands are not given too early and fail.
+DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger batch delete. Check modem specs: Waveshare storage limit = 20
 PURGE_SMS = 'AT+CMGD=1,4'  # Purge all SMS in modem storage
-ACL = '+611234567890,+19876543210'  # Phone number access control list
-LOG_ROTATE_COUNT = 2 # How many full logs to keep in rotation before overwrite
-CURRENT_DIR = '/root' # Default current directory path for SMS user
+ACL = '+611234567890,+19876543210'  # Phone number access control white list. See comments in process_sms to switch to a black list.
+LOG_ROTATE_COUNT = 2 # How many security logs to keep in rotation before overwrite
+CURRENT_DIR = '/root' # Default current shell directory path for the SMS user
 
 LOG_FILE_NAME = 'sms-to-shell.log'  # Log file name
-LOG_FILE_PATH = '/var/log/'  # Log file location
+LOG_FILE_PATH = '/var/log/'  # Log file location. Consider the security context the script runs in to ensure write access
 MAX_LOG_FILE_SIZE = 64 * 1024  # Maximum log file size in bytes (E.g. 64k = 64 * 1024) Keep it small for micro devices.
 
-# USE ALL UPPERCASE FOR KEYWORD SHORTCUT VALUES! (Shortcuts are only case insensitive for the sms sender! )
+# USE ALL UPPERCASE FOR KEYWORD SHORTCUT VALUES! (Shortcuts are only case insensitive for the SMS sender!)
 KEYWORD_PROCESS_LIST = 'PL'  # Send the cut down running process list
 KEYWORD_PING = 'PING'  # Ping keyword shortcut'
-KEYWORD_1 = 'K1' # User defined keyword shortcut
+
+KEYWORD_1 = 'K1'
 KEYWORD_1_CMD = 'echo "Hello World!"'
-KEYWORD_2 = 'K2' # User defined keyword shortcut
+
+KEYWORD_2 = 'K2'
 KEYWORD_2_CMD = 'ps -aux'
-KEYWORD_3 = 'K3' # User defined keyword shortcut
+
+KEYWORD_3 = 'K3'
 KEYWORD_3_CMD = 'uname -a'
-KEYWORD_4 = 'K4' # User defined keyword shortcut
+
+KEYWORD_4 = 'K4'
 KEYWORD_4_CMD = 'uname -s'
-KEYWORD_5 = 'K5' # User defined keyword shortcut
+
+KEYWORD_5 = 'K5'
 KEYWORD_5_CMD = 'uname -i'
-KEYWORD_6 = 'K6' # User defined keyword shortcut
+
+KEYWORD_6 = 'K6'
 KEYWORD_6_CMD = 'uname -o'
 
 # Define the logger object
@@ -62,18 +72,13 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
-OTP_ENABLED = False  # Enable OTP globally here
-TOTP_SECRET_KEY = 'run otp-setup.py and add secret key value from otp-key.txt here'
-totp = pyotp.TOTP(TOTP_SECRET_KEY)
-
-
 # Check if OTP authentication is enabled
 def is_otp_enabled():
     return OTP_ENABLED
 
 
 def switch_to_directory():
-    # Change to the home directory
+    # Change to the designated current directory
     os.chdir(CURRENT_DIR)
 
 
@@ -83,7 +88,7 @@ def send_sms_command(modem, phone_number, command):
         modem.write(b'MODEM_MSG_FORMAT\r\n')
         modem.read_until(b'OK\r\n')
 
-        # Send SMS command
+        # Send an SMS
         modem.write('AT+CMGS="{}"\r\n'.format(phone_number).encode(MODEM_CHAR_ENCODING))
         modem.read_until(b'> ')
         modem.write(command.encode(MODEM_CHAR_ENCODING))
@@ -94,7 +99,7 @@ def send_sms_command(modem, phone_number, command):
         # Check if the command was sent successfully
         sent_successfully = '+CMGS: ' in response.decode(MODEM_CHAR_ENCODING)
 
-        time.sleep(0.5)  # Add a small delay between sending SMS messages
+        time.sleep(0.5)  # Add a small delay between SMS messages
 
         return sent_successfully
     except Exception as e:
@@ -105,6 +110,7 @@ def send_sms_command(modem, phone_number, command):
 
 
 def execute_shell_command(command):
+    # Run the SMS command in the shell
     try:
         output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         return output.decode(MODEM_CHAR_ENCODING)
@@ -119,6 +125,7 @@ def execute_shell_command(command):
 
 
 def parse_sms(sms):
+    # Split phone numbers from SMS command content
     try:
         lines = sms.splitlines()
         phone_number = lines[0].split(',')[2].strip('"')
@@ -132,10 +139,11 @@ def parse_sms(sms):
 
 def send_process_list(modem, phone_number):
     try:
+        # Send a process list formatted for SMS viewing
         command = 'ps -d -o pid,cmd --no-headers | awk \'!/^\[.*\]/{gsub(/[^a-zA-Z0-9_./-]/, "", $2); gsub(/\\x27/, "\\\\x27", $2); print $1, $2}\''
         output = execute_shell_command(command)
 
-        # Check if the output is empty
+        # Check for empty error in output
         if not output:
             raise ValueError("Empty process list")
 
@@ -176,10 +184,11 @@ def ping_host(target):
 
 def send_ping_response(modem, phone_number, response, error_message=None):
     try:
+        # Capture ping command errors up front
         if error_message:
             logger.error(error_message)  # Log the error message
 
-        # Paginate and send the ping response as SMS
+        # Split ping output into multi page SMS reply
         pages = paginate_output(modem, response)
         num_pages = len(pages)
 
@@ -197,7 +206,7 @@ def send_ping_response(modem, phone_number, response, error_message=None):
 def kill_process(modem, phone_number, pid):
     try:
         # Execute the kill command with signal -9 and echo the exit status
-        command = f'kill -9 {pid} ; echo "command exit status =" $?'
+        command = f'kill -9 {pid} ; echo "exit status =" $?'
         output = execute_shell_command(command)
 
         # Send the kill command output as SMS
@@ -219,13 +228,11 @@ def process_sms(modem, sms):
         print("Phone number:", phone_number)
         print("Command:", content)
         # Log the phone number, time, date, and command received
-#        logger.info('Phone Number: %s, Time: %s, Date: %s, Command Received: %s',
-#                    phone_number, time.strftime('%H:%M:%S'), time.strftime('%Y-%m-%d'), content)
         logger.info('D: %s T: %s Ph: %s Command: %s',
                     time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
 
         # Check if the phone number is allowed
-        if phone_number not in ACL:
+        if phone_number not in ACL: # Potential to make ACL a black list with "if phone_number is in ACL:"
             # Phone number not allowed, send rejection message
             rejection_message = "Access denied"
             send_sms_command(modem, phone_number, rejection_message)
@@ -233,10 +240,10 @@ def process_sms(modem, sms):
                         time.strftime('%Y-%m-%d'), time.strftime('%H:%M:%S'), phone_number, content)
             return
 
-        # If OTP is enabled, verify password before proceeding
+        # If OTP is enabled, verify one time password before proceeding
         if is_otp_enabled():
             try:
-                # Split the content into OTP and command
+                # Split the content into OTP and the actual command
                 otp, command = content.split(' ', 1)
             except ValueError:
                 # Invalid format, send rejection message
@@ -310,7 +317,7 @@ def process_sms(modem, sms):
         print("Command output:")
         print(output)
 
-        # Send the command output as SMS
+        # Send the command output to be assembled as SMS
         build_sms_response(modem, phone_number, output)
 
         time.sleep(0.5)  # Delay to give the modem time to keep up
@@ -323,7 +330,7 @@ def process_sms(modem, sms):
 def build_sms_response(modem, phone_number, command):
     try:
         # Paginate the SMS response
-        pages = paginate_output(modem, command)  # Pass the 'modem' argument as well
+        pages = paginate_output(modem, command)
         num_pages = len(pages)
 
         for i, page in enumerate(pages):
@@ -331,8 +338,6 @@ def build_sms_response(modem, phone_number, command):
             message = page_number + ' ' + page
             send_sms_command(modem, phone_number, message)
 
-# Uncomment to log the successful SMS response
-#        logger.info('SMS response sent to %s', phone_number)
     except Exception as e:
         # Log the error message
         logger.error('Failed to send SMS response: %s', str(e))
@@ -340,6 +345,7 @@ def build_sms_response(modem, phone_number, command):
 
 
 def paginate_output(modem, output):
+    # Split longer SMS replies into multiple messages
     try:
         pages = []
         current_page = ''
@@ -369,14 +375,15 @@ def paginate_output(modem, output):
 
 def check_read_sms(modem):
     try:
-        # Check the number of read SMS messages in modem memory
+        # Check for read SMS messages in modem memory
         modem.write(b'AT+CMGL="REC READ"\r\n')
         response = modem.read_until(b'OK\r\n')
 
-        # Count the number of read SMS messages
+        # Count the number of read SMS messages in modem memory
         messages = response.decode(MODEM_CHAR_ENCODING).split('+CMGL: ')[1:]
         num_read_sms = len(messages)
 
+        # Delete all messages from modem memory if the batch delete threshold is reached
         if num_read_sms >= DEL_SMS_BATCH:
             purge_all_sms(modem)
 
@@ -387,7 +394,7 @@ def check_read_sms(modem):
 
 def purge_all_sms(modem):
     try:
-        # Purge all SMS messages from modem memory
+        # Function to purge all SMS messages from modem memory
         modem.write((PURGE_SMS + '\r\n').encode(MODEM_CHAR_ENCODING))
         modem.read_until(b'OK\r\n')
     except Exception as e:
@@ -398,6 +405,7 @@ def purge_all_sms(modem):
 
 def main():
     try:
+        # One time commands:
 
         # Switch to the desired current directory context
         switch_to_directory()
@@ -425,7 +433,7 @@ def main():
             # Purge all SMS messages from modem memory on script start
             purge_all_sms(modem)
 
-            # Main loop
+        # Loop commands:
             while True:
                 # Check for new SMS messages
                 modem.write(b'AT+CMGL="REC UNREAD"\r\n')
