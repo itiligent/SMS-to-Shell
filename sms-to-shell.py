@@ -46,7 +46,7 @@ KEYWORD_1 = 'K1'
 KEYWORD_1_CMD = 'echo "Hello World!"'
 
 KEYWORD_2 = 'K2'
-KEYWORD_2_CMD = 'ps -aux' # careful this returns a 100+ pages
+KEYWORD_2_CMD = 'ps -aux' # careful as this returns a 100+ pages and many cost $$
 
 KEYWORD_3 = 'K3'
 KEYWORD_3_CMD = 'uname -a'
