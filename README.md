@@ -1,4 +1,4 @@
-# Raspberry Pi SMS to OS shell command interface 
+# Raspberry Pi SMS remote control command interface 
 ### (Supports optional TOTP authentication, command whitelist & phone number white/black list restrictions)
 
 This script provides a robust framework to control and interact with an OS shell remotely via SMS commands. It supports executing either customisable predefined commands via SMS keyword shortcuts or sending shell commands directly. For convenience, all keyword shortcuts are **case insensitive**, whereas direct SMS commands remain **case sensitive**.
@@ -21,7 +21,8 @@ The script includes the following features:
 
 To use this script, you need the following:
 
-- An AT serial or USB modem with a functioning SIM/carrier connection
+- An working mobile SIM card 
+- A WORKING modem (e.g. you can already connect with `minicom -D /dev/[device] -b 115200` and issue AT commands)
 - A basic understanding of AT modem syntax, bash, and Python
 - A recent Debian-flavored Linux OS with Python 3 and Python pip installed (Windows adaption would be minor)
 
@@ -31,10 +32,10 @@ Follow these steps to set up the `sms-to-shell.py` script:
 
 1. Install dependencies:
    ```
-   sudo apt update && sudo install minicom python3-pip 
+   sudo apt update && sudo apt install minicom python3-pip 
    sudo pip3 install pyserial qrcode pyotp
    ```
-   If you wish to stick with distro based software, another [not fully tested] option is
+   Or for easier updating, dependencies from your Linux distro may be available:
    ```
    sudo apt update && sudo apt install minicom python3-serial python3-pyotp python3-qrcode
    ```
@@ -68,6 +69,7 @@ Follow these steps to set up the `sms-to-shell.py` script:
 
 7. Install SMS-to-Shell as a systemd service
    - Make `sms-to-shell-setup.sh` executable and run it: `chmod +x sms-to-shell.sh` and `sudo ./sms-to-shell.sh`
+     - Script is installed to /opt/sms-to-shell/sms-to-shell.py and the service unit configuration file to /lib/systemd/system/sms-to-shell.service
      - Advanced users may want to run the script as a specific user. If so, adjust `sms-to-shell-setup.sh` to the desired value for `SHELL_USER='???'`. 
      - Using `SHELL_USER = 'root'` should work universally and changing this requires understanding the various implications:
        - A lower privileged user may require additional `sudo` command input overhead/back and forth.
