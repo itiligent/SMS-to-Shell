@@ -10,7 +10,7 @@ import qrcode
 from PIL import Image
 
 # Generate a new secret key
-secret_key = pyotp.random_base32()
+secret_key = pyotp.random_base32(length=32)
 
 # Create a TOTP object with the secret key
 totp = pyotp.TOTP(secret_key)
