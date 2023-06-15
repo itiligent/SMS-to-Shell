@@ -18,7 +18,7 @@ OTP_ENABLED = False  # Enable OTP security globally here
 TOTP_SECRET_KEY = 'run otp-setup.py and add secret key value from otp-key.txt here'
 totp = pyotp.TOTP(TOTP_SECRET_KEY)
 
-RESTRICT_COMMANDS = False  # Limit the script to only allow a whitelist of keyword commands 
+RESTRICT_COMMANDS = False  # Limit the script to only allow a whitelist of keyword commands
 
 MODEM = '/dev/ttyS0'  # Modem hardware device
 MODEM_BAUD_RATE = 115200  # Modem port speed
@@ -27,7 +27,7 @@ MODEM_CHAR_SET = 'AT+CSCS="IRA"'  # Typically your modem manufacturer's default 
 MODEM_TXT_MODE_PARAM = 'AT+CSMP=17,167,0,0'  # Typically your modem manufacturer's default text mode parameters
 MODEM_MSG_FORMAT = 'AT+CMGF=1' # Set the modem SMS mode to text or PDU format, typically =1 for text
 MAX_SMS_LENGTH = 150  # Max characters in a single SMS. (Reduce if pages are skipped, GSM default is 160 minus pagination overhead)
-MODEM_DELAY = 30 # Allow modem to initialise after reboot so one-time modem config commands are not given too early and fail.
+MODEM_DELAY = 15 # Allow modem to initialise after reboot so one-time modem config commands are not given too early and fail.
 DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger batch delete. Check modem specs: Waveshare storage limit = 20
 PURGE_SMS = 'AT+CMGD=1,4'  # Purge all SMS in modem storage
 ACL = '+611234567890,+19876543210'  # Phone number white list. (See comments in ACL section to convert to a black list)
@@ -46,7 +46,7 @@ KEYWORD_1 = 'K1'
 KEYWORD_1_CMD = 'echo "Hello World!"'
 
 KEYWORD_2 = 'K2'
-KEYWORD_2_CMD = 'ps -aux' # careful as this returns a 100+ pages and many cost $$
+KEYWORD_2_CMD = 'ps -aux' # careful as this returns a 100+ pages and may cost $$
 
 KEYWORD_3 = 'K3'
 KEYWORD_3_CMD = 'uname -a'
