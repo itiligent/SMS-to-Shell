@@ -28,6 +28,7 @@ MODEM_TXT_MODE_PARAM = 'AT+CSMP=17,167,0,0'  # Typically your modem manufacturer
 MODEM_MSG_FORMAT = 'AT+CMGF=1' # Set the modem SMS mode to text or PDU format, typically =1 for text
 MAX_SMS_LENGTH = 150  # Max characters in a single SMS. (Reduce if pages are skipped, GSM default is 160 minus pagination overhead)
 MODEM_DELAY = 15 # Allow modem to initialise after reboot so one-time modem config commands are not given too early and fail.
+PURGE_ON_START = False # False = process waiting commands sent while device was down/not ready. True = Don't run any waiting commands at script start
 DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger batch delete. Check modem specs: Waveshare storage limit = 20
 PURGE_SMS = 'AT+CMGD=1,4'  # Purge all SMS in modem storage
 ACL = '+611234567890,+19876543210'  # Phone number white list. (See comments in ACL section to convert to a black list)
@@ -435,8 +436,8 @@ def main():
             modem.read_until(b'OK\r\n')
             time.sleep(1)
 
-            # Purge all SMS messages from modem memory on script start
-            purge_all_sms(modem)
+            if PURGE_ON_START:
+                purge_all_sms(modem)
 
         # Loop commands:
             while True:
