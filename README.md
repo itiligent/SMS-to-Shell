@@ -1,7 +1,7 @@
 # Raspberry Pi SMS remote control command interface 
-### (Supports optional TOTP authentication, command whitelist & phone number white/black list restrictions)
+### Securely control Raspi over SMS without full time internet access or cloud subscription. (Supports optional QRcode TOTP authentication, command whitelist & phone number white/black list restrictions)
 
-This script provides a robust framework to control and interact with an OS shell remotely via SMS commands. It supports executing either customisable predefined commands via SMS keyword shortcuts or sending shell commands directly. For convenience, all keyword shortcuts are **case insensitive**, whereas direct SMS commands remain **case sensitive**.
+This script provides a robust framework to control and interact with an OS shell remotely via SMS commands using only low power or intermittent networking. It supports executing either customisable predefined commands via SMS keyword shortcuts or sending shell commands directly. For convenience, all keyword shortcuts are **_case insensitive_**, whereas direct SMS commands remain **_case sensitive_**.
 
 After sending a shell command via SMS, incoming messages are converted into shell input, executed, and the resulting shell output is replayed back to the sender's phone number via SMS. All SMS command outputs above a configurable character limit will be paginated over multiple SMS messages/pages.
 
@@ -24,7 +24,7 @@ To use this script, you need the following:
 - An working mobile SIM card 
 - A WORKING modem (e.g. you can already connect with `minicom -D /dev/[device] -b 115200` and issue AT commands)
 - A basic understanding of AT modem syntax, bash, and Python
-- A recent Debian-flavored Linux OS with Python 3 and Python pip installed (Windows adaption would be minor)
+- A recent Debian-flavored Linux OS with the above dependencies installed (A Windows adaption for running Powershell commands would need only minor changes )
 
 ## Setup Instructions
 
