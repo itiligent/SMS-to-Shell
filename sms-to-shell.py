@@ -69,7 +69,7 @@ KEYWORD_3 = 'F3'
 KEYWORD_3_CMD = 'uname -m'
 
 KEYWORD_4 = 'F4'
-KEYWORD_4_CMD = 'uname -i'
+KEYWORD_4_CMD = 'uname -v'
 
 KEYWORD_5 = 'F5'
 KEYWORD_5_CMD = 'uname -o'
@@ -109,7 +109,7 @@ def send_sms_response(modem, phone_number, command):
         sent_successfully = '+CMGS: ' in response.decode(MODEM_CHAR_ENCODING)
 
         # Add a small delay between SMS messages
-        time.sleep(0.5)  
+        time.sleep(0.5)
 
         return sent_successfully
     except Exception as e:
@@ -328,7 +328,7 @@ def process_sms(modem, sms):
 
         # Execute unrestricted sms commands if RESTRICT_COMMANDS is False
         if not RESTRICT_COMMANDS:
-            command = content + ' ; echo "exit status =" $?'
+            command = content + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "Command ok"; else echo "Command failed"; fi'
             output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
@@ -356,6 +356,19 @@ def build_sms_response(modem, phone_number, command):
         # Paginate the SMS response
         pages = paginate_output(modem, command)
         num_pages = len(pages)
+
+        # If the command executed successfully but returned no output
+        if num_pages == 0:
+            confirmation_message = "Command success, no output"
+            send_sms_response(modem, phone_number, confirmation_message)
+            return
+
+        # Check if the confirmation message contains only "Command success"
+        confirmation_message = pages[0]
+        if confirmation_message.strip() == "Command ok" and num_pages == 1:
+            confirmation_message = "Command success, no output"
+            send_sms_response(modem, phone_number, confirmation_message)
+            return
 
         for i, page in enumerate(pages):
             page_number = f"{i+1}/{num_pages}"
