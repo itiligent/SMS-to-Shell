@@ -36,7 +36,7 @@ DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger a batch delet
 LOG_ROTATE_COUNT = 2 # How many security logs to keep in rotation before overwrite
 CURRENT_DIR = '/root' # Default current directory path for the SMS interactive user
 LOG_FILE_NAME = 'sms-to-shell.log'  # Log file name
-LOG_FILE_PATH = '/var/log/'  # Log file location. Consider the accoount name the script runs under to ensure write access
+LOG_FILE_PATH = '/var/log/'  # Log file location. Consider the account name the script runs under to ensure write access
 MAX_LOG_FILE_SIZE = 64 * 1024  # Maximum log file size in bytes (E.g. 64k = 64 * 1024) Keep it small for micro devices.
 
 # Static script parameters, don't change unless you know what you're doing
@@ -55,7 +55,7 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 # USER DEFINED KEYWORD SHORTCUTS. USE ALL UPPERCASE FOR KEYWORD SHORTCUT VALUES! (Shortcuts are case insensitive for the SMS sender only!)
-# To add more keywords, replicate the global variables below and in 'process_sms' section
+# To add more keywords, extend both the global variables below and the structure shown in the 'process_sms' section
 KEYWORD_PROCESS_LIST = 'PL'  # Send the cut down running process list
 KEYWORD_PING = 'PING'  # Send a ping and paginate return responses over sms'
 
@@ -277,6 +277,8 @@ def process_sms(modem, sms):
             # Separate the OTP from the message content
             content = command
 
+        # Keyword section - extend the below format for additional keywords 
+
         if content.strip().upper() == KEYWORD_PROCESS_LIST:
             # Send process list
             send_process_list(modem, phone_number)
@@ -317,7 +319,8 @@ def process_sms(modem, sms):
             output = execute_shell_command(KEYWORD_6_CMD)
             build_sms_response(modem, phone_number, output)
             return
-
+        # End keyword section 
+        
         # Check if the command is a kill command
         kill_pattern = r'^KILL\s+(\d+)$'
         match = re.match(kill_pattern, content.strip().upper())
@@ -328,15 +331,15 @@ def process_sms(modem, sms):
 
         # Execute unrestricted sms commands if RESTRICT_COMMANDS is False
         if not RESTRICT_COMMANDS:
-            command = content + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "Command ok"; else echo "Command failed"; fi'
+            command = content + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "OK"; else echo "Command failed"; fi'
             output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
 
         # If the command is not recognised, send an error message
-        error_message = "Command disallowed"
+        error_message = "Unauthorised command"
         send_sms_response(modem, phone_number, error_message)
-        logger.warning("Command disallowed - Phone Number: %s - Command: %s", phone_number, content)
+        logger.warning("Unauthorised command - Phone Number: %s - Command: %s", phone_number, content)
 
     except ValueError as e:
         error_message = "An value error occurred while parsing the SMS."
@@ -363,13 +366,23 @@ def build_sms_response(modem, phone_number, command):
             send_sms_response(modem, phone_number, confirmation_message)
             return
 
-        # Check if the confirmation message contains only "Command success"
+        # Check if the confirmation message contains only "OK"
         confirmation_message = pages[0]
-        if confirmation_message.strip() == "Command ok" and num_pages == 1:
-            confirmation_message = "Command success, no output"
+        if confirmation_message.strip() == "OK" and num_pages == 1:
+            confirmation_message = "OK, no output"
             send_sms_response(modem, phone_number, confirmation_message)
             return
 
+        # Calculate the total length of all pages
+        total_length = sum(len(page) for page in pages)
+
+        # Check if the paginated output can fit into one page
+        if total_length <= MAX_SMS_LENGTH:
+            message = '\n'.join(pages)  # Combine all pages into one message
+            send_sms_response(modem, phone_number, message)
+            return
+
+        # Send paginated response
         for i, page in enumerate(pages):
             page_number = f"{i+1}/{num_pages}"
             message = page_number + ' ' + page
