@@ -38,6 +38,9 @@ CURRENT_DIR = '/root' # Default current directory path for the SMS interactive u
 LOG_FILE_NAME = 'sms-to-shell.log'  # Log file name
 LOG_FILE_PATH = '/var/log/'  # Log file location. Consider the account name the script runs under to ensure write access
 MAX_LOG_FILE_SIZE = 64 * 1024  # Maximum log file size in bytes (E.g. 64k = 64 * 1024) Keep it small for micro devices.
+CMD_PASS_MSG = 'OK'v  # Message to append for successful commands
+CMD_FAIL_MSG = 'Command failed'
+
 
 # Static script parameters, don't change unless you know what you're doing
 totp = pyotp.TOTP(TOTP_SECRET_KEY)
@@ -331,7 +334,7 @@ def process_sms(modem, sms):
 
         # Execute unrestricted sms commands if RESTRICT_COMMANDS is False
         if not RESTRICT_COMMANDS:
-            command = content + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "OK"; else echo "Command failed"; fi'
+            command = content + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
             output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
@@ -360,23 +363,23 @@ def build_sms_response(modem, phone_number, command):
         pages = paginate_output(modem, command)
         num_pages = len(pages)
 
-        # If the command executed successfully but returned no output
+        # Provide more descriptive feedback for a keyword where it executed successfully but returned no output
         if num_pages == 0:
-            confirmation_message = "Command success, no output"
+            confirmation_message = f"{CMD_PASS_MSG}, no output"
             send_sms_response(modem, phone_number, confirmation_message)
             return
 
-        # Check if the confirmation message contains only "OK"
+        # Provide more descriptive feedback for an unrestricted command that executed successfully but returned no output (other than "OK")
         confirmation_message = pages[0]
-        if confirmation_message.strip() == "OK" and num_pages == 1:
-            confirmation_message = "OK, no output"
+        if confirmation_message.strip() == CMD_PASS_MSG and num_pages == 1:
+            confirmation_message = f"{CMD_PASS_MSG}, no output"
             send_sms_response(modem, phone_number, confirmation_message)
             return
 
         # Calculate the total length of all pages
         total_length = sum(len(page) for page in pages)
 
-        # Check if the paginated output can fit into one page
+        # Check if the paginated output can fit into one page, if so send directly without page numbering
         if total_length <= MAX_SMS_LENGTH:
             message = '\n'.join(pages)  # Combine all pages into one message
             send_sms_response(modem, phone_number, message)
