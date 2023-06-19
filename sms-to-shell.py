@@ -29,15 +29,16 @@ MODEM_TXT_MODE_PARAM = 'AT+CSMP=17,167,0,0'  # Typically your modem manufacturer
 MODEM_MSG_FORMAT = 'AT+CMGF=1' # Set the modem SMS mode to text or PDU format, typically this is =1 for text
 MAX_SMS_LENGTH = 150  # Max characters in a single SMS. (Reduce if pages are skipped, GSM default is 160 minus pagination overhead)
 MODEM_DELAY = 15 # Give modem time to initialise after reboot so modem config commands are not given too early and fail.
-PURGE_ALL_ON_START = False # False = process commands in memory or arrived while device was offline/not ready. True = Clean out all (read or unread) commands on startup
-PURGE_ALL_SMS = 'AT+CMGD=1,4'  # Command to purge all SMS in modem storage (won't delete /bounced/not yet arrived )
+PURGE_ALL_ON_START = False # False = process commands in memory or that arrived while device was offline/not ready. True = Clean out all (read or unread) commands on startup
+PURGE_ALL_SMS = 'AT+CMGD=1,4'  # Command to purge all SMS in modem storage (won't delete /bounced/not yet arrived messages)
 PURGE_PROC_SMS= 'AT+CMGD=1,2'  # Command to purge "received read" or "stored sent" messages from modem storage.
-DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger a batch delete. Check modem message storage capacity with AT+CPMS?
-LOG_ROTATE_COUNT = 2 # How many security logs to keep in rotation before overwrite
+DEL_SMS_BATCH = 10  # Threshold of stored read messages to trigger a batch delete. (Check your modem's message storage capacity with AT+CPMS?
+LOG_ROTATE_COUNT = 2 # Security logs to keep in rotation before overwrite
 CURRENT_DIR = '/root' # Default current directory path for the SMS interactive user
 LOG_FILE_NAME = 'sms-to-shell.log'  # Log file name
 LOG_FILE_PATH = '/var/log/'  # Log file location. Consider the account name the script runs under to ensure write access
 MAX_LOG_FILE_SIZE = 64 * 1024  # Maximum log file size in bytes (E.g. 64k = 64 * 1024) Keep it small for micro devices.
+PING_COUNT = 10 # Number of test pings to send before stopping (we don't want continuous pings!)
 CMD_PASS_MSG = 'OK'  # Feedback to append to successful commands
 CMD_FAIL_MSG = 'Command failed' # Feedback to append to failed commands
 
@@ -56,11 +57,11 @@ file_handler.setFormatter(formatter)
 # Add log file handler to logger
 logger.addHandler(file_handler)
 
-# USER DEFINED KEYWORD SHORTCUTS. USE ALL UPPERCASE FOR KEYWORD_# SHORTCUT VALUES! 
-# Shortcuts are case insensitive for the SMS sender only!
-# To add more keywords, extend both the global variables directly below and the keyword structure in the 'process_sms' section
-KEYWORD_PROCESS_LIST = 'PL'  # Built-in command to send a running process list formatted for SMS
-KEYWORD_PING = 'PING'  # Built-in command to test the network on check ping responses via sms'
+# USER DEFINED KEYWORD SHORTCUTS. USE ALL UPPERCASE FOR KEYWORD_# SHORTCUT VALUES!
+# Shortcuts are case insensitive for the SMS sender only! To add more keywords, extend both
+# the global variables directly below and the keyword structure in the 'process_sms' section
+KEYWORD_PROCESS_LIST = 'PL'  # Built-in command to send a running process list formatted optimally for SMS
+KEYWORD_PING = 'PING'  # Built-in command to test the network and send response info via sms'
 
 KEYWORD_0 = 'F0'
 KEYWORD_0_CMD = 'echo "Hello World!"'
@@ -72,7 +73,7 @@ KEYWORD_2 = 'F2'
 KEYWORD_2_CMD = 'touch filename.txt'
 
 KEYWORD_3 = 'F3'
-KEYWORD_3_CMD = 'cat ~/.ssh/authorized_keys'
+KEYWORD_3_CMD = f'cat {CURRENT_DIR}/.ssh/authorized_keys'
 
 KEYWORD_4 = 'F4'
 KEYWORD_4_CMD = 'uname -r'
@@ -95,7 +96,7 @@ KEYWORD_9_CMD = 'uname -o'
 
 ############ START OF SCRIPT ACTIONS ############
 
-# Check if OTP authentication is enabled
+# Check if one time password authentication is enabled
 def is_otp_enabled():
     return OTP_ENABLED
 
@@ -138,7 +139,6 @@ def execute_shell_command(command):
         return output.decode(MODEM_CHAR_ENCODING)
 
     except subprocess.CalledProcessError as e:
-        # Log the error message
         logger.error('Command execution failed with error: %s', e.output.decode(MODEM_CHAR_ENCODING))
         return str(e.output.decode(MODEM_CHAR_ENCODING))
 
@@ -149,6 +149,7 @@ def execute_shell_command(command):
 
 def parse_sms(sms):
     try:
+        # Separate phone numbers from incoming command content whilst keeping the association to each other
         lines = sms.splitlines()
         phone_number = lines[0].split(',')[2].strip('"')
         content = lines[1]
@@ -169,7 +170,7 @@ def parse_sms(sms):
 
 def send_process_list(modem, phone_number):
     try:
-        # Send a process list formatted for SMS viewing
+        # Send a process list optimised for SMS viewing
         command = 'ps -d -o pid,cmd --no-headers | awk \'!/^\[.*\]/{gsub(/[^a-zA-Z0-9_./-]/, "", $2); gsub(/\\x27/, "\\\\x27", $2); print $1, $2}\''
         output = execute_shell_command(command)
 
@@ -193,7 +194,7 @@ def send_process_list(modem, phone_number):
 def ping_host(target):
     try:
         # Execute the ping command with a limited number of pings
-        command = f'ping -c 5 {target}'
+        command = f'ping -c {PING_COUNT} {target}'
         output = execute_shell_command(command)
         return output
 
@@ -434,22 +435,30 @@ def build_sms_response(modem, phone_number, output):
 
 
 def paginate_output(modem, output):
-    # Split longer SMS replies into multiple messages
     try:
+        # Very long lines like ssh keys may fail or drop characters if remaining characters are not re-calculated and
+        # split with every page iteration, but this approach will also result in a new SMS for each line and a flood of
+        # SMS for regular output types. To avoid a single SMS for every line of output, this section checks the remaining_chars
+        # at each page only when a single line is >= to the MAX_SMS_LENGTH. Where a line is < MAX_SMS_LENGTH , it will append
+        # multiple lines into single SMS page until full before creating a new page, creating a minimum of SMS replies.
         pages = []
         current_page = ''
 
         for line in output.splitlines():
-            # Calculate remaining characters in current page
-            remaining_chars = MAX_SMS_LENGTH - len(current_page)
-
-            if len(line) <= remaining_chars:
-                # Append line to current page
-                current_page += line + '\n'
+            if len(line) <= MAX_SMS_LENGTH:
+                # Append the entire line to the current page
+                remaining_chars = MAX_SMS_LENGTH - len(current_page)
+                if len(line) <= remaining_chars:
+                    current_page += line + '\n'
+                else:
+                    pages.append(current_page.strip())
+                    current_page = line + '\n'
             else:
-                # Line does not fit in current page, start new page
-                pages.append(current_page.strip())
-                current_page = line + '\n'
+                # Split the long line into segments and add them as separate pages
+                while len(line) > 0:
+                    segment = line[:MAX_SMS_LENGTH]
+                    line = line[MAX_SMS_LENGTH:]
+                    pages.append(segment)
 
         if current_page:
             pages.append(current_page.strip())
@@ -458,7 +467,7 @@ def paginate_output(modem, output):
 
     except Exception as e:
         logger.error('Failed to paginate output: %s', str(e))
-        return []  # Return an empty list in case of error
+        return []
 
 
 def check_read_sms(modem):
@@ -493,7 +502,7 @@ def delete_message(modem, message):
 
 def purge_proc_sms(modem):
     try:
-        # Remove messages that are already read or processed and sent 
+        # Remove messages that are already read or processed and sent
         modem.write((PURGE_PROC_SMS + '\r\n').encode(MODEM_CHAR_ENCODING))
         modem.read_until(b'OK\r\n')
 
@@ -506,7 +515,7 @@ def purge_proc_sms(modem):
 def purge_all_sms(modem):
     try:
         # A more efficient function to purge all SMS messages from modem memory rather than delete on every run.
-        # Incoming messages that bounced due to storage being full wont be deleted and likely (eventually) arrive. 
+        # Incoming messages that bounced due to storage being full wont be deleted and likely (eventually) arrive.
         modem.write((PURGE_ALL_SMS + '\r\n').encode(MODEM_CHAR_ENCODING))
         modem.read_until(b'OK\r\n')
 
