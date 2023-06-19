@@ -38,9 +38,8 @@ CURRENT_DIR = '/root' # Default current directory path for the SMS interactive u
 LOG_FILE_NAME = 'sms-to-shell.log'  # Log file name
 LOG_FILE_PATH = '/var/log/'  # Log file location. Consider the account name the script runs under to ensure write access
 MAX_LOG_FILE_SIZE = 64 * 1024  # Maximum log file size in bytes (E.g. 64k = 64 * 1024) Keep it small for micro devices.
-CMD_PASS_MSG = 'OK'v  # Message to append for successful commands
-CMD_FAIL_MSG = 'Command failed'
-
+CMD_PASS_MSG = 'OK'  # Feedback to append to successful commands
+CMD_FAIL_MSG = 'Command failed' # Feedback to append to failed commands
 
 # Static script parameters, don't change unless you know what you're doing
 totp = pyotp.TOTP(TOTP_SECRET_KEY)
@@ -57,32 +56,44 @@ file_handler.setFormatter(formatter)
 # Add log file handler to logger
 logger.addHandler(file_handler)
 
-# USER DEFINED KEYWORD SHORTCUTS. USE ALL UPPERCASE FOR KEYWORD SHORTCUT VALUES! (Shortcuts are case insensitive for the SMS sender only!)
-# To add more keywords, extend both the global variables below and the structure shown in the 'process_sms' section
-KEYWORD_PROCESS_LIST = 'PL'  # Send the cut down running process list
-KEYWORD_PING = 'PING'  # Send a ping and paginate return responses over sms'
+# USER DEFINED KEYWORD SHORTCUTS. USE ALL UPPERCASE FOR KEYWORD_# SHORTCUT VALUES! 
+# Shortcuts are case insensitive for the SMS sender only!
+# To add more keywords, extend both the global variables directly below and the keyword structure in the 'process_sms' section
+KEYWORD_PROCESS_LIST = 'PL'  # Built-in command to send a running process list formatted for SMS
+KEYWORD_PING = 'PING'  # Built-in command to test the network on check ping responses via sms'
+
+KEYWORD_0 = 'F0'
+KEYWORD_0_CMD = 'echo "Hello World!"'
 
 KEYWORD_1 = 'F1'
-KEYWORD_1_CMD = 'echo "Hello World!"'
+KEYWORD_1_CMD = 'ls -l'
 
 KEYWORD_2 = 'F2'
-KEYWORD_2_CMD = 'uname -n'
+KEYWORD_2_CMD = 'touch filename.txt'
 
 KEYWORD_3 = 'F3'
-KEYWORD_3_CMD = 'uname -m'
+KEYWORD_3_CMD = 'cat ~/.ssh/authorized_keys'
 
 KEYWORD_4 = 'F4'
-KEYWORD_4_CMD = 'uname -v'
+KEYWORD_4_CMD = 'uname -r'
 
 KEYWORD_5 = 'F5'
 KEYWORD_5_CMD = 'uname -o'
 
 KEYWORD_6 = 'F6'
-KEYWORD_6_CMD = 'ls -l'
+KEYWORD_6_CMD = 'uname -a'
+
+KEYWORD_7 = 'F7'
+KEYWORD_7_CMD = 'uname -m'
+
+KEYWORD_8 = 'F8'
+KEYWORD_8_CMD = 'uname -v'
+
+KEYWORD_9 = 'F9'
+KEYWORD_9_CMD = 'uname -o'
 
 
 ############ START OF SCRIPT ACTIONS ############
-
 
 # Check if OTP authentication is enabled
 def is_otp_enabled():
@@ -280,8 +291,6 @@ def process_sms(modem, sms):
             # Separate the OTP from the message content
             content = command
 
-        # Keyword section - extend the below format for additional keywords 
-
         if content.strip().upper() == KEYWORD_PROCESS_LIST:
             # Send process list
             send_process_list(modem, phone_number)
@@ -292,38 +301,67 @@ def process_sms(modem, sms):
             ping_response = ping_host(ping_target)
             send_ping_response(modem, phone_number, ping_response)
             return
+        elif content.strip().upper() == KEYWORD_0:
+            # Execute the KEYWORD_0 command
+            command = KEYWORD_0_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
+            build_sms_response(modem, phone_number, output)
+            return
         elif content.strip().upper() == KEYWORD_1:
             # Execute the KEYWORD_1 command
-            output = execute_shell_command(KEYWORD_1_CMD)
+            command = KEYWORD_1_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
         elif content.strip().upper() == KEYWORD_2:
             # Execute the KEYWORD_2 command
-            output = execute_shell_command(KEYWORD_2_CMD)
+            command = KEYWORD_2_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
         elif content.strip().upper() == KEYWORD_3:
             # Execute the KEYWORD_3 command
-            output = execute_shell_command(KEYWORD_3_CMD)
+            command = KEYWORD_3_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
         elif content.strip().upper() == KEYWORD_4:
             # Execute the KEYWORD_4 command
-            output = execute_shell_command(KEYWORD_4_CMD)
+            command = KEYWORD_4_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
         elif content.strip().upper() == KEYWORD_5:
             # Execute the KEYWORD_5 command
-            output = execute_shell_command(KEYWORD_5_CMD)
+            command = KEYWORD_5_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
         elif content.strip().upper() == KEYWORD_6:
             # Execute the KEYWORD_6 command
-            output = execute_shell_command(KEYWORD_6_CMD)
+            command = KEYWORD_6_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
-        # End keyword section 
-        
+        elif content.strip().upper() == KEYWORD_7:
+            # Execute the KEYWORD_7 command
+            command = KEYWORD_7_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
+            build_sms_response(modem, phone_number, output)
+            return
+        elif content.strip().upper() == KEYWORD_8:
+            # Execute the KEYWORD_8 command
+            command = KEYWORD_8_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
+            build_sms_response(modem, phone_number, output)
+            return
+        elif content.strip().upper() == KEYWORD_9:
+            # Execute the KEYWORD_9 command
+            command = KEYWORD_9_CMD + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
+            output = execute_shell_command(command)
+            build_sms_response(modem, phone_number, output)
+            return
+
         # Check if the command is a kill command
         kill_pattern = r'^KILL\s+(\d+)$'
         match = re.match(kill_pattern, content.strip().upper())
@@ -332,14 +370,14 @@ def process_sms(modem, sms):
             kill_process(modem, phone_number, pid)
             return
 
-        # Execute unrestricted sms commands if RESTRICT_COMMANDS is False
+        # Execution of any sms command is allowed if RESTRICT_COMMANDS is set to False
         if not RESTRICT_COMMANDS:
             command = content + ' ; command_status=$? ; if [ $command_status -eq 0 ]; then echo "' + CMD_PASS_MSG + '"; else echo "' + CMD_FAIL_MSG + '"; fi'
             output = execute_shell_command(command)
             build_sms_response(modem, phone_number, output)
             return
 
-        # If the command is not recognised, send an error message
+        # If any command is not allowed, send an warning message
         error_message = "Unauthorised command"
         send_sms_response(modem, phone_number, error_message)
         logger.warning("Unauthorised command - Phone Number: %s - Command: %s", phone_number, content)
@@ -357,10 +395,10 @@ def process_sms(modem, sms):
         logger.error("Exception occurred: %s", str(e))
 
 
-def build_sms_response(modem, phone_number, command):
+def build_sms_response(modem, phone_number, output):
     try:
         # Paginate the SMS response
-        pages = paginate_output(modem, command)
+        pages = paginate_output(modem, output)
         num_pages = len(pages)
 
         # Provide more descriptive feedback for a keyword where it executed successfully but returned no output
