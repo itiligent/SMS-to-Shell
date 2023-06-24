@@ -1,76 +1,55 @@
 #!/usr/bin/python
-
-# This is mostly a copy of a rather clunky test script found in the labyrinth of Waveshare websites
-# Set it to your phone number and run. GSM is likely used here this is the 
-# most universal (but character limited) encoding scheme.
-# It gives a small error at the end I've not bothered to debug but its good 
-# just for ensuring that your modem is able to receive and send SMS.
+######################################################################################################################
+# SMS test modem script
+# David Harrop
+# June 2023
+#######################################################################################################################
 
 import serial
 import time
 
-ser = serial.Serial("/dev/ttyS0", 115200)
-ser.flushInput()
+# Modem setup variables
+MODEM = '/dev/ttyUSB2'  # Modem hardware device
+MODEM_BAUD_RATE = 115200  # Modem port speed
+MODEM_CHAR_ENCODING = 'iso-8859-1'  # May or may not be your modem manufacturer's default encoding scheme
+MODEM_CHAR_SET = 'AT+CSCS="IRA"'  # May or may not be your modem manufacturer's default character set
+MODEM_TXT_MODE_PARAM = 'AT+CSMP=17,167,0,0'  # Typically your modem manufacturer's default text mode parameters
+MODEM_MSG_FORMAT = 'AT+CMGF=1'  # Set the modem SMS mode to text or PDU format, typically this is =1 for text
 
-phone_number = '+611234567865'  # Updated phone number
-text_message = 'test message from python!'
-rec_buff = ''
+# Function to send AT command to modem and get response
+def send_at_command(command):
+    modem.write(command.encode(MODEM_CHAR_ENCODING) + b'\r')
+    time.sleep(1)
+    response = modem.read_all().decode(MODEM_CHAR_ENCODING)
+    return response
 
-def send_at(command, back, timeout):
-    rec_buff = ''
-    ser.write((command+'\r\n').encode())
-    time.sleep(timeout)
-    if ser.inWaiting():
-        time.sleep(0.01)
-        rec_buff = ser.read(ser.inWaiting())
-    if back not in rec_buff.decode():
-        print(command + ' ERROR')
-        print(command + ' back:\t' + rec_buff.decode())
-        return 0
-    else:
-        print(rec_buff.decode())
-        return 1
+# Initialise modem connection
+modem = serial.Serial(MODEM, MODEM_BAUD_RATE, timeout=1)
 
-def SendShortMessage(phone_number, text_message):
-    print("Setting SMS mode...")
-    send_at("AT+CMGF=1", "OK", 1)
-    send_at("AT+CSMP=17,167,2,0", "OK", 1)  # Set coding for each message
-    send_at("AT+CSCS=\"GSM\"", "OK", 1)  # Set character set for each message
-    print("Sending Short Message")
-    answer = send_at("AT+CMGS=\"" + phone_number + "\"", ">", 2)
-    if 1 == answer:
-        ser.write(text_message.encode())
-        ser.write(b'\x1A')
-        answer = send_at('', 'OK', 20)
-        if 1 == answer:
-            print('send successfully')
-        else:
-            print('error')
-    else:
-        print('error%d' % answer)
+# Send modem setup commands
+send_at_command(MODEM_CHAR_SET)
+send_at_command(MODEM_TXT_MODE_PARAM)
+send_at_command(MODEM_MSG_FORMAT)
 
-def ReceiveShortMessage():
-    rec_buff = ''
-    print('Setting SMS mode...')
-    send_at('AT+CMGF=1', 'OK', 1)
-    send_at('AT+CPMS=\"SM\",\"SM\",\"SM\"', 'OK', 1)
-    answer = send_at('AT+CMGR=1', '+CMGR:', 2)
-    if 1 == answer:
-        answer = 0
-        if 'OK' in rec_buff:
-            answer = 1
-            print(rec_buff)
-    else:
-        print('error%d' % answer)
-        return False
-    return True
+# Set recipient phone number and message content
+recipient_number = '+61234567890'  # Replace with the actual recipient phone number
+message_content = 'This is a test sms'
 
-try:
-    print('Sending Short Message Test:')
-    SendShortMessage(phone_number, text_message)
-    print('Receive Short Message Test:\n')
-    print('Please send a message to phone ' + phone_number)
-    ReceiveShortMessage()
-except:
-    if ser != None:
-        ser.close()
+# Send SMS command
+sms_command = 'AT+CMGS="{}"'.format(recipient_number)
+send_at_command(sms_command)
+
+# Send message content
+modem.write(message_content.encode(MODEM_CHAR_ENCODING))
+modem.write(bytes([26]))  # ASCII code for Ctrl+Z
+
+# Wait for response
+time.sleep(1)
+response = modem.read_all().decode(MODEM_CHAR_ENCODING)
+
+# Close modem connection
+modem.close()
+
+# Print response
+print(response)
+
