@@ -1,4 +1,4 @@
-<h1 align="center">:iphone: Raspberry Pi SMS Remote Control Command Interface</h1>
+<h1 align="center">:iphone: IOT SMS Remote Control Command Interface</h1>
 
 <p align="center">
   <strong>DIRECTLY & SECURELY interact with Raspberry Pi via native SMS (no cloud APIs or subscriptions).</strong>
