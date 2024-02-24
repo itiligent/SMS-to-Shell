@@ -44,7 +44,7 @@ PING_COUNT = 8  # Number of test pings to send before stopping (we don't want an
 CMD_PASS_MSG = 'OK'  # Feedback to append to successful commands
 CMD_FAIL_MSG = 'Command failed'  # Feedback to append to failed commands
 
-# USER DEFINABLE KEYWORD SHORTCUTS. USE UPPERCASE FOR KEYWORD TAGS: e.g  KEYWORD_1 = "UPPERCASE_VALULE"
+# USER DEFINABLE KEYWORD SHORTCUTS. USE UPPERCASE FOR KEYWORD TAGS: e.g  KEYWORD_1 = "UPPERCASE_VALUE"
 # Keyword shortcut case is INGNORED when sending SMS commands.
 KEYWORD_PROCESS_LIST = 'PL'  # Built-in command to send a running process list formatted optimally for SMS
 KEYWORD_PING = 'PING'  # Built-in command to test the network and send response info via sms'
