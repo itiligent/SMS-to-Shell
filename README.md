@@ -89,7 +89,7 @@ sudo python3 sms-to-shell.py
   - Debug information will be displayed in the terminal as SMS commands are received and processed.
   - If you have a serial modem that also supports USB (like some Pi hats), separately connect to the modem with Minicom over USB (e.g., /dev/ttyUSB2) while the script connects to the serial modem interface (e.g., /dev/ttyS0) or vice versa. This will allow you to use Minicom to view and follow modem activity and manually query the modem with +AT commands all whilst testing the running script with real SMS commands.
 - Create and test your own keyword shortcuts, for example: `KEYWORD_1_CMD = 'your command or script to run'`.
-  - IMPORTANT: Corresponding shortcut values must be set in UPPERCASE, e.g., `KEYWORD_1 = 'F1'` NOT `KEYWORD_1 = 'f1'`.
+  - IMPORTANT: If expanding above the 10 built in shortcut command placeholders, additional shortcut names must be decalred in UPPERCASE, e.g., `KEYWORD_11 = 'F11'` NOT `KEYWORD_11 = 'f11'`.
 
 ### 6. Install SMS-to-Shell as a systemd service that starts at boot:
 - Make sure to stop any running instances of the test script.
